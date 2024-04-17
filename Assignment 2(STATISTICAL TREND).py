@@ -249,32 +249,32 @@ print(lower_middle_income_correlation_results)
 print("\nCorrelation between CO2 emissions and Urban population (% of total population) for upper middle-income countries for last 20 year data:")
 print(upper_middle_income_correlation_results)
 
-# Extract correlation values
-rich_corr_value = rich_correlation_results.values[0]
-poor_corr_value = poor_correlation_results.values[0]
-lower_middle_income_corr_value = lower_middle_income_correlation_results.values[0]
-upper_middle_income_corr_value = upper_middle_income_correlation_results.values[0]
+# Extract correlation values and income groups
+rich_corr_value, rich_income_group = rich_correlation_results.values[0], rich_correlation_results.index[0][1]
+poor_corr_value, poor_income_group = poor_correlation_results.values[0], poor_correlation_results.index[0][1]
+lower_middle_income_corr_value, lower_middle_income_group = lower_middle_income_correlation_results.values[0], lower_middle_income_correlation_results.index[0][1]
+upper_middle_income_corr_value, upper_middle_income_group = upper_middle_income_correlation_results.values[0], upper_middle_income_correlation_results.index[0][1]
 
-# Extract country names
-rich_country = rich_correlation_results.index[0][0]
-poor_country = poor_correlation_results.index[0][0]
-lower_middle_income_country = lower_middle_income_correlation_results.index[0][0]
-upper_middle_income_country = upper_middle_income_correlation_results.index[0][0]
-
-# Plotting the bar chart for correlation between CO2 emissions and Urban population
+# Plotting the line graph for correlation between CO2 emissions and Urban population
 plt.figure(figsize=(10, 6))
 
-countries = [rich_country, poor_country, lower_middle_income_country, upper_middle_income_country]
-correlation_values = [rich_corr_value, poor_corr_value, lower_middle_income_corr_value, upper_middle_income_corr_value]
+# Plotting data points
+plt.plot([rich_income_group, upper_middle_income_group, lower_middle_income_group, poor_income_group],
+         [rich_corr_value, upper_middle_income_corr_value, lower_middle_income_corr_value, poor_corr_value],
+         marker='o', linestyle='-', color='b')
 
-plt.bar(countries, correlation_values, color=['blue', 'red', 'green', 'orange'])
+# Adding country names on the dots
+plt.text(rich_income_group, rich_corr_value, rich_country, fontsize=9, ha='right', va='bottom')
+plt.text(upper_middle_income_group, upper_middle_income_corr_value + 0.02, upper_middle_income_country,  fontsize=9, ha='right', va='bottom')
+plt.text(lower_middle_income_group, lower_middle_income_corr_value + 0.02, lower_middle_income_country, fontsize=9, ha='right', va='bottom')
+plt.text(poor_income_group,poor_corr_value + 0.02, poor_country, fontsize=9, ha='right', va='bottom')
 
-plt.xlabel('Countries')
+# Adding labels and title
+plt.xlabel('Income Group')
 plt.ylabel('Correlation')
-plt.title('Correlation between CO2 Emissions and Urban population (% of total population) for last 20 year data')
+plt.title('Correlation between CO2 emissions and Urban Population')
 
-plt.ylim(0, 1)  # Set y-axis limit from 0 to 1
-plt.grid(axis='y')
-
+# Show plot
+plt.grid(True)
 plt.tight_layout()
 plt.show()
