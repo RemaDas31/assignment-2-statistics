@@ -1,0 +1,279 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Sat Apr 20 23:36:27 2024
+
+@author: HP
+"""
+
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+
+def extract(data, countries):
+    """
+    Function which takes a DataFrame and a list of countries, 
+    extracts data for those countries, and returns a DataFrame.
+    """
+    extracted_data = data[data["Country Name"].isin(countries)]
+    return extracted_data.reset_index(drop=True)
+
+# Reading the CSV files
+co2_data = pd.read_csv("co2data.csv")  # Read CO2 data
+income_data = pd.read_csv("incomedata.csv")  # Read income data
+
+# Filling the blank spaces in co2_data with 0.0
+co2_data.fillna(0.0, inplace=True)
+
+# Filtering co2_data based on indicators chosen
+selected_indicators = [
+    "Urban population (% of total population)",
+    "Forest area (sq. km)",
+    "Agricultural land (% of land area)",
+    "Mortality rate, under-5 (per 1,000 live births)",
+    "CO2 emissions (metric tons per capita)"
+]
+filtered_co2_data = co2_data[co2_data["Indicator Name"].isin(selected_indicators)]
+
+# Resetting the index
+filtered_co2_data.reset_index(drop=True, inplace=True)
+
+# Merging the filtered co2_data with the IncomeGroup column from income_data
+merged_data = pd.merge(filtered_co2_data, income_data[["Country Code", "IncomeGroup"]], on="Country Code", how="left")
+
+# Reordering the columns to place IncomeGroup at the last
+column_order = [col for col in merged_data.columns if col != "IncomeGroup"] + ["IncomeGroup"]
+merged_data = merged_data[column_order]
+
+# Saving the modified data to a new CSV file
+merged_data.to_csv("updated_co2data.csv", index=False)
+
+# Transposing dataset
+transposed_dataset = merged_data.T
+
+# Reading the updated CSV file
+updated_data = pd.read_csv("updated_co2data.csv")
+
+# Descriptive statistics
+print(updated_data.describe())
+
+# Selecting countries from rich, middle income (now), and poor
+rich = ['United Kingdom']
+upper_middle_income = ['Indonesia']
+lower_middle_income = ['India']
+poor = ['Afghanistan']
+
+first_20_years = [str(year) for year in range(1960, 1986)]
+last_20_years = [str(year) for year in range(1990, 2024)]
+
+# Extract data for the first third (1960 to 1985) and last third (1990 to 2023)
+first_20yr_data = extract(updated_data, rich + upper_middle_income + lower_middle_income + poor)
+last_20yr_data = extract(updated_data, rich + upper_middle_income + lower_middle_income + poor)
+
+# Calculate the correlation matrix for the first 20 years
+first_20yr_correlation_matrix = first_20yr_data.drop(["Country Name", "Country Code", "Indicator Name", "Indicator Code", "IncomeGroup"], axis=1).corr()
+
+# Calculate the correlation matrix for the recent 20 years
+last_20yr_correlation_matrix = last_20yr_data.drop(["Country Name", "Country Code", "Indicator Name", "Indicator Code", "IncomeGroup"], axis=1).corr()
+
+# Calculate the average rate of change for each indicator over the 20-year intervals
+avg_rate_of_change = {}
+for indicator in first_20yr_data["Indicator Name"].unique():
+    indicator_values = first_20yr_data[first_20yr_data["Indicator Name"] == indicator][first_20_years].values
+    valid_values_mask = np.logical_and(indicator_values != 0, ~np.isnan(indicator_values))
+    rate_of_change = np.diff(indicator_values, axis=1) / indicator_values[:, :-1]
+    rate_of_change[~valid_values_mask[:, :-1]] = np.nan  
+    avg_rate_of_change[indicator] = np.nanmean(rate_of_change)
+
+# Output the correlation matrices and average rate of change
+print("Correlation Matrix for the first 20 years (1960-1985):")
+print(first_20yr_correlation_matrix)
+
+print("\nAverage Rate of Change:")
+for indicator, rate in avg_rate_of_change.items():
+    print(f"{indicator}: {rate}")
+
+# Define a function to perform bootstrapping and compute the confidence interval
+def bootstrap_mean_confidence_interval(data, num_samples=1000, alpha=0.05):
+    means = []
+    for _ in range(num_samples):
+        bootstrap_sample = np.random.choice(data, size=len(data), replace=True)
+        mean = np.mean(bootstrap_sample)
+        means.append(mean)
+    
+    lower_percentile = 100 * alpha / 2
+    upper_percentile = 100 * (1 - alpha / 2)
+    lower_bound = np.percentile(means, lower_percentile)
+    upper_bound = np.percentile(means, upper_percentile)
+    
+    return lower_bound, upper_bound
+
+# Select data for the first 20 years and filter by income group
+first_20yr_co2_emissions = first_20yr_data[first_20yr_data["Indicator Name"] == "CO2 emissions (metric tons per capita)"][first_20_years].values.flatten()
+rich_co2_emissions_first_20yr = first_20yr_data[first_20yr_data["Country Name"].isin(rich)][first_20_years].values.flatten()
+upper_middle_income_co2_emissions_first_20yr = first_20yr_data[first_20yr_data["Country Name"].isin(upper_middle_income)][first_20_years].values.flatten()
+lower_middle_income_co2_emissions_first_20yr = first_20yr_data[first_20yr_data["Country Name"].isin(lower_middle_income)][first_20_years].values.flatten()
+poor_co2_emissions_first_20yr = first_20yr_data[first_20yr_data["Country Name"].isin(poor)][first_20_years].values.flatten()
+
+# Compute bootstrapped confidence intervals for the mean CO2 emissions for the first 20 years
+rich_ci_first_20yr = bootstrap_mean_confidence_interval(rich_co2_emissions_first_20yr)
+upper_middle_income_ci_first_20yr = bootstrap_mean_confidence_interval(upper_middle_income_co2_emissions_first_20yr)
+lower_middle_income_ci_first_20yr = bootstrap_mean_confidence_interval(lower_middle_income_co2_emissions_first_20yr)
+poor_ci_first_20yr = bootstrap_mean_confidence_interval(poor_co2_emissions_first_20yr)
+
+# Select data for the last 20 years and filter by income group
+last_20yr_co2_emissions = last_20yr_data[last_20_years].values.flatten()
+rich_co2_emissions_last_20yr = last_20yr_data[last_20yr_data["Country Name"].isin(rich)][last_20_years].values.flatten()
+upper_middle_income_co2_emissions_last_20yr = last_20yr_data[last_20yr_data["Country Name"].isin(upper_middle_income)][last_20_years].values.flatten()
+lower_middle_income_co2_emissions_last_20yr = last_20yr_data[last_20yr_data["Country Name"].isin(lower_middle_income)][last_20_years].values.flatten()
+poor_co2_emissions_last_20yr = last_20yr_data[last_20yr_data["Country Name"].isin(poor)][last_20_years].values.flatten()
+
+# Compute bootstrapped confidence intervals for the mean CO2 emissions for the last 20 years
+rich_ci_last_20yr = bootstrap_mean_confidence_interval(rich_co2_emissions_last_20yr)
+upper_middle_income_ci_last_20yr = bootstrap_mean_confidence_interval(upper_middle_income_co2_emissions_last_20yr)
+lower_middle_income_ci_last_20yr = bootstrap_mean_confidence_interval(lower_middle_income_co2_emissions_last_20yr)
+poor_ci_last_20yr = bootstrap_mean_confidence_interval(poor_co2_emissions_last_20yr)
+
+# Print the results for the first 20 years
+print("\nBootstrapped 95% confidence intervals for mean CO2 emissions (metric tons per capita) for the first 20 years:")
+print("Rich countries:", rich_ci_first_20yr)
+print("Upper middle-income countries:", upper_middle_income_ci_first_20yr)
+print("Lower middle-income countries:", lower_middle_income_ci_first_20yr)
+print("Poor countries:", poor_ci_first_20yr)
+
+# Print the results for the last 20 years
+print("\nBootstrapped 95% confidence intervals for mean CO2 emissions (metric tons per capita) for the last 20 years:")
+print("Rich countries:", rich_ci_last_20yr)
+print("Upper middle-income countries:", upper_middle_income_ci_last_20yr)
+print("Lower middle-income countries:", lower_middle_income_ci_last_20yr)
+print("Poor countries:", poor_ci_last_20yr)
+
+# Plotting for last 20 year data 
+
+# Select relevant columns for CO2 emissions and forest area
+co2_data = updated_data[updated_data['Indicator Name'] == 'CO2 emissions (metric tons per capita)'][['Country Name', 'IncomeGroup'] + last_20_years]
+forest_data = updated_data[updated_data['Indicator Name'] == 'Forest area (sq. km)'][['Country Name', 'IncomeGroup'] + last_20_years]
+
+# Set 'Country Name' and 'IncomeGroup' as index
+co2_data.set_index(['Country Name', 'IncomeGroup'], inplace=True)
+forest_data.set_index(['Country Name', 'IncomeGroup'], inplace=True)
+
+# Select relevant columns for CO2 emissions and forest area for rich countries
+rich_co2_data = co2_data.loc[rich]
+rich_forest_data = forest_data.loc[rich]
+
+poor_co2_data = co2_data.loc[poor]
+poor_forest_data = forest_data.loc[poor]
+
+lower_middle_income_co2_data = co2_data.loc[lower_middle_income]
+lower_middle_income_forest_data = forest_data.loc[lower_middle_income]
+
+upper_middle_income_co2_data = co2_data.loc[upper_middle_income]
+upper_middle_income_forest_data = forest_data.loc[upper_middle_income]
+
+# Calculate correlation using corrwith() for each income group
+rich_correlation_results = rich_co2_data.corrwith(rich_forest_data, axis=1)
+poor_correlation_results = poor_co2_data.corrwith(poor_forest_data, axis=1)
+lower_middle_income_correlation_results = lower_middle_income_co2_data.corrwith(lower_middle_income_forest_data, axis=1)
+upper_middle_income_correlation_results = upper_middle_income_co2_data.corrwith(upper_middle_income_forest_data, axis=1)
+
+# Print correlation results for each income group
+print("\nCorrelation between CO2 emissions and Forest area for rich countries for last 20 year data:")
+print(rich_correlation_results)
+
+print("\nCorrelation between CO2 emissions and Forest area for poor countries for last 20 year data:")
+print(poor_correlation_results)
+
+print("\nCorrelation between CO2 emissions and Forest area for lower middle-income countries for last 20 year data:")
+print(lower_middle_income_correlation_results)
+
+print("\nCorrelation between CO2 emissions and Forest area for upper middle-income countries for last 20 year data:")
+print(upper_middle_income_correlation_results)
+
+# Extract correlation values
+rich_corr_value = rich_correlation_results.values[0]
+poor_corr_value = poor_correlation_results.values[0]
+lower_middle_income_corr_value = lower_middle_income_correlation_results.values[0]
+upper_middle_income_corr_value = upper_middle_income_correlation_results.values[0]
+
+# Extract country names
+rich_country = rich_correlation_results.index[0][0]
+poor_country = poor_correlation_results.index[0][0]
+lower_middle_income_country = lower_middle_income_correlation_results.index[0][0]
+upper_middle_income_country = upper_middle_income_correlation_results.index[0][0]
+
+# Plotting the bar chart for correlation between CO2 emissions and Forest area
+plt.figure(figsize=(10, 6))
+
+countries = [rich_country, poor_country, lower_middle_income_country, upper_middle_income_country]
+correlation_values = [rich_corr_value, poor_corr_value, lower_middle_income_corr_value, upper_middle_income_corr_value]
+
+plt.bar(countries, correlation_values, color=['blue', 'red', 'green', 'orange'])
+
+plt.xlabel('Countries')
+plt.ylabel('Correlation')
+plt.title('Correlation between CO2 Emissions and Forest area for last 20 year data')
+
+plt.ylim(0, 1)  # Set y-axis limit from 0 to 1
+plt.grid(axis='y')
+
+plt.tight_layout()
+plt.show()
+
+# Select relevant columns for CO2 emissions and Urban population
+Urban_population_data = updated_data[updated_data['Indicator Name'] == 'Urban population (% of total population)'][['Country Name', 'IncomeGroup'] + last_20_years]
+
+# Set 'Country Name' and 'IncomeGroup' as index
+Urban_population_data.set_index(['Country Name', 'IncomeGroup'], inplace=True)
+
+rich_Urban_population_data = Urban_population_data.loc[rich]
+poor_Urban_population_data = Urban_population_data.loc[poor]
+lower_middle_income_Urban_population_data = Urban_population_data.loc[lower_middle_income]
+upper_middle_income_Urban_population_data = Urban_population_data.loc[upper_middle_income]
+
+# Calculate correlation using corrwith()
+rich_correlation_results = rich_co2_data.corrwith(rich_Urban_population_data, axis=1)
+poor_correlation_results = poor_co2_data.corrwith(poor_Urban_population_data, axis=1)
+lower_middle_income_correlation_results = lower_middle_income_co2_data.corrwith(lower_middle_income_Urban_population_data, axis=1)
+upper_middle_income_correlation_results = upper_middle_income_co2_data.corrwith(upper_middle_income_Urban_population_data, axis=1)
+
+# Print correlation results for each income group
+print("\nCorrelation between CO2 emissions and Urban population (% of total population) for rich countries for last 20 year data:")
+print(rich_correlation_results)
+
+print("\nCorrelation between CO2 emissions and Urban population (% of total population) for poor countries for last 20 year data:")
+print(poor_correlation_results)
+
+print("\nCorrelation between CO2 emissions and Urban population (% of total population) for lower middle-income countries for last 20 year data:")
+print(lower_middle_income_correlation_results)
+
+print("\nCorrelation between CO2 emissions and Urban population (% of total population) for upper middle-income countries for last 20 year data:")
+print(upper_middle_income_correlation_results)
+
+# Extract correlation values and income groups
+rich_corr_value, rich_income_group = rich_correlation_results.values[0], rich_correlation_results.index[0][1]
+poor_corr_value, poor_income_group = poor_correlation_results.values[0], poor_correlation_results.index[0][1]
+lower_middle_income_corr_value, lower_middle_income_group = lower_middle_income_correlation_results.values[0], lower_middle_income_correlation_results.index[0][1]
+upper_middle_income_corr_value, upper_middle_income_group = upper_middle_income_correlation_results.values[0], upper_middle_income_correlation_results.index[0][1]
+
+# Plotting the line graph for correlation between CO2 emissions and Urban population
+plt.figure(figsize=(10, 6))
+
+plt.plot([rich_income_group, upper_middle_income_group, lower_middle_income_group, poor_income_group],
+         [rich_corr_value, upper_middle_income_corr_value, lower_middle_income_corr_value, poor_corr_value],
+         marker='o', linestyle='-', color='b')
+
+# Adding country names on the dots
+for x, y, country in zip([rich_income_group, upper_middle_income_group, lower_middle_income_group, poor_income_group],
+                         [rich_corr_value, upper_middle_income_corr_value, lower_middle_income_corr_value, poor_corr_value],
+                         [rich_country, upper_middle_income_country, lower_middle_income_country, poor_country]):
+    plt.text(x, y, country, fontsize=9, ha='right', va='bottom')
+
+# Adding labels and title
+plt.xlabel('Income Group')
+plt.ylabel('Correlation')
+plt.title('Correlation between CO2 emissions and Urban Population')
+
+# Show plot
+plt.grid(True)
+plt.tight_layout()
+plt.show()
